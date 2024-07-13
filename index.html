@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 LED Control</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 1.5rem;
+        }
+        .status {
+            font-size: 1.1rem;
+            color: #7f8c8d;
+            margin-bottom: 1.5rem;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        #connectButton {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #connectButton:hover {
+            background-color: #2980b9;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ESP32 LED Control</h1>
+        <p id="status" class="status">Disconnected</p>
+        <button id="connectButton">Connect Bluetooth</button>
+        <label id="toggleSwitch" class="switch hidden">
+            <input type="checkbox" id="ledToggle">
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <script>
+        let device, characteristic;
+        const serviceUUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+        const characteristicUUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+        const connectButton = document.getElementById('connectButton');
+        const toggleSwitch = document.getElementById('toggleSwitch');
+        const ledToggle = document.getElementById('ledToggle');
+        const statusText = document.getElementById('status');
+
+        async function connectBluetooth() {
+            try {
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [serviceUUID] }]
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(serviceUUID);
+                characteristic = await service.getCharacteristic(characteristicUUID);
+                
+                connectButton.classList.add('hidden');
+                toggleSwitch.classList.remove('hidden');
+                statusText.textContent = 'Connected';
+
+                // Read initial LED state
+                const value = await characteristic.readValue();
+                ledToggle.checked = value.getUint8(0) !== 0;
+
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+            } catch (error) {
+                console.error('Bluetooth connection failed:', error);
+                statusText.textContent = 'Connection failed';
+            }
+        }
+
+        async function toggleLED() {
+            if (!characteristic) return;
+            try {
+                const value = new Uint8Array([ledToggle.checked ? 1 : 0]);
+                await characteristic.writeValue(value);
+            } catch (error) {
+                console.error('Failed to toggle LED:', error);
+            }
+        }
+
+        function onDisconnected() {
+            statusText.textContent = 'Disconnected';
+            connectButton.classList.remove('hidden');
+            toggleSwitch.classList.add('hidden');
+        }
+
+        connectButton.addEventListener('click', connectBluetooth);
+        ledToggle.addEventListener('change', toggleLED);
+    </script>
+</body>
+</html>
